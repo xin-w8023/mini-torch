@@ -1,0 +1,4 @@
+numpy
+graphviz
+pytest
+tensorboard

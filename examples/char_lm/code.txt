@@ -1,0 +1,690 @@
+import torch
+import torch.nn as nn
+
+
+class Linear(nn.Module):
+    def __init__(self, in_dim, out_dim, bias=True):
+        super().__init__()
+        self.weight = nn.Parameter(torch.randn(in_dim, out_dim))
+        self.bias = None
+        if bias:
+            self.bias = nn.Parameter(torch.zeros((1, out_dim)))
+
+    def forward(self, x):
+        x = torch.matmul(x, self.weight)
+        if self.bias:
+            x += self.bias
+        return x
+
+
+if __name__ == '__main__':
+    class Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.li = Linear(10, 20)
+
+        def forward(self, x):
+            return self.li(x)
+
+    m = Model()
+    print(dict(m.named_parameters()))
+    print(m)
+from .module import Module
+from .linear import Linear
+from .parameter import Parameter
+from .loss import *import torch.nn as nn
+import torch.nn.functinoal as F
+
+
+class Loss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class CrossEntropyLoss(Loss):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, target):
+        x = x.reshape(-1, x.shape[-1])
+        target = target.reshape(-1)
+        return F.cross_entropy(x, target)
+        # xmax = x.max(1, keepdims=True)
+        # xmax = -xmax
+        # x = x + xmax
+        # exp = x.exp()
+        # exp_sum = exp.sum(1, keepdims=True)
+        # exp_sum = exp_sum ** -1
+        # x = exp * exp_sum
+        # log_softmax = torch.log(x)
+        # loss = log_softmax[:, target]
+        # loss = -loss
+        # if self.reduction == "sum":
+        #     loss = loss.sum()
+        # elif self.reduction == "mean":
+        #     loss = loss.mean()
+        # return loss
+import torch
+
+
+class Module:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __repr__(self):
+        return "repr: Need Update"
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def parameters(self, recurse=True):
+        for name, param in self.named_parameters(recurse=recurse):
+            yield param
+
+    def named_parameters(self, prefix="", recurse=True):
+        for item in self.__dict__:
+            param = getattr(self, item)
+            if isinstance(param, torch.nn.Parameter):
+                yield ".".join([prefix, item]), param
+            elif isinstance(param, Module):
+                if prefix:
+                    prefix += "." + item
+                else:
+                    prefix = item
+                for name, sub_param in param.named_parameters(prefix, recurse):
+                    yield name, sub_param
+
+    def _call_impl(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    __call__ = _call_impl
+import torch
+
+
+class Parameter(torch.Tensor):
+    def __init__(self, data=None, requires_grad=True):
+        if data is None:
+            data = []
+        if isinstance(data, torch.Tensor):
+            data = data.data
+        super().__init__(data=data, requires_grad=requires_grad)
+import copy
+
+import torch
+from torch.backward_functions import *
+
+import numpy as np
+
+
+def cross_entropy(x, t):
+    data_max = x.data.max(1, keepdims=True)
+    exp = np.exp(x.data - data_max)
+    softmax = exp / exp.sum(axis=1, keepdims=True)
+    loss = -np.log(softmax[:, t.data])
+    loss = loss.mean()
+    out = torch.Tensor(loss, requires_grad=x.requires_grad)
+
+    out.grad_fn = NllLossBackwardFunction(x, out, softmax, t)
+
+    return out
+
+
+def relu(x):
+    return leaky_relu(x, 0)
+
+
+def leaky_relu(x, leaky=0.1):
+    data = copy.deepcopy(x.data)
+    data[x.data < 0] = leaky * data[x.data < 0]
+    out = torch.Tensor(data, requires_grad=x.requires_grad)
+    out.grad_fn = LeakyReluBackwardFunction(x, out, leaky)
+    return out
+
+import queue
+
+from torch.tensor import Tensor
+
+
+def to_graph(tensor):
+    default_style = {"shape": "rectangle"}
+    act_style = {"shape": "egg", "color": "red"}
+    leaf_style = {"shape": "rectangle", "color": "lightblue", "style": "filled"}
+    op_style = {"shape": "oval"}
+    import graphviz
+    visited = {}
+    edges_set = set()
+    dot = graphviz.Digraph(name="Graph", graph_attr=dict(size="800,160"))
+    dot.attr(newrank="true")
+    q = queue.Queue()
+    global_i = -1
+    dummy_node = Tensor(1)
+    dummy_node.pre.append(tensor)
+    nodes, edges = [], []
+
+    q.put((global_i, dummy_node))
+    while not q.empty():
+        index, node = q.get()
+        for n in node.pre:
+            if n not in visited:
+
+                style = default_style
+                if not n.pre:
+                    style = leaf_style
+                if not n.next:
+                    style = act_style
+
+                if n.grad_fn in ["+", "-", "*", "/"]:
+                    style = op_style
+
+                global_i += 1
+                nodes.append(dict(name=str(global_i), label=f"{n.data}|{n.grad}", _attributes=style))
+                q.put((global_i, n))
+                visited[n] = str(global_i)
+
+            if (visited[n], str(index)) not in edges and index != -1:
+                edges.append(dict(tail_name=visited[n], head_name=str(index), constraint='false'))
+                edges_set.add((visited[n], str(index)))
+    for node in nodes[::-1]:
+        dot.node(**node)
+    for edge in edges:
+        dot.edge(**edge)
+    return dot
+
+def show(tensor):
+    to_graph(tensor).render(view=True, cleanup=True)
+import numpy as np
+
+import torch
+from torch.optim.optimizer import Optimizer
+
+
+class SGD(Optimizer):
+    def __init__(self, parameters, lr=1e-3, momentum=0.9):
+        super().__init__(parameters, lr)
+        self.momentum = momentum
+        self.v = [np.zeros_like(param.data) for param in self.parameters]
+
+    def step(self):
+        for v, param in zip(self.v, self.parameters):
+            v = v * self.momentum + param.grad * (1 - self.momentum)
+            param.data -= self.lr * vfrom .optimizer import Optimizer
+from .sgd import SGDclass Optimizer:
+    def __init__(self, parameters, learning_rate):
+        self.parameters = list(parameters)
+        self.lr = learning_rate
+
+    def step(self):
+        raise NotImplementedError
+
+    def zero_grad(self):
+        for param in self.parameters:
+            param.grad = 0.0from .tensor import Tensor
+from .ops import *
+import torch.nn
+import torch.optim
+import torch.autograd
+from torch.generator import *import copy
+import torch
+import numpy as np
+
+
+class Tensor:
+    def __init__(self, data, dtype=np.float32, requires_grad=False, grad_fn=None):
+
+        if not isinstance(data, np.ndarray):
+            try:
+                data = np.array(data, dtype=dtype)
+            except Exception as e:
+                raise ValueError(f"Cannot convert data with type {type(data)} to Tensor.")
+
+        self.data = data
+        self.dtype = dtype
+        self.requires_grad = requires_grad
+        self.grad = None
+        self.grad_fn = grad_fn
+
+        self.pre = []
+        self.next = []
+
+    def __repr__(self):
+        return f"Tensor(" \
+               f"{self.data}, " \
+               f"dtype={self.dtype.__name__}, " \
+               f"requires_grad={self.requires_grad}, " \
+               f"grad_fn={self.grad_fn}" \
+               f")"
+
+    def _append(self, other):
+        if other not in self.next:
+            self.next.append(other)
+        if self not in other.pre:
+            other.pre.append(self)
+
+    def __add__(self, other):
+        return torch.add(self, other)
+
+    def __neg__(self):
+        return torch.neg(self)
+
+    def __sub__(self, other):
+        return self + -other
+
+
+    def __mul__(self, other):
+        return torch.mul(self, other)
+
+    def mean(self, dims=None, keepdims=False):
+        return torch.mean(self, dims, keepdims)
+
+    def item(self):
+        return self.data
+
+    def clone(self):
+        return Tensor(copy.deepcopy(self.data), self.dtype,
+                      self.requires_grad, grad_fn=self.grad_fn)
+
+    def backward(self):
+        torch.autograd.backward(self)
+
+    def reshape(self, *dims):
+        return torch.reshape(self, *dims)
+
+    def max(self, dim=None, keepdims=False):
+        return torch.max(self, dim, keepdims)
+
+    def exp(self):
+        return torch.exp(self)
+
+    def sum(self, dim=None, keepdims=False):
+        return torch.sum(self, dim, keepdims)
+
+    def __pow__(self, power, modulo=None):
+        return torch.pow(self, power)
+
+    def __getitem__(self, index):
+        return torch.index_select(self, index)
+
+    @property
+    def shape(self):
+        return self.data.shape
+
+if __name__ == '__main__':
+    import torch.graph
+    x = np.arange(1, 3).reshape(1, 2)
+    y = np.arange(1, 3).reshape(2, 1)
+    x = Tensor(x, label="x")
+    y = Tensor(y, label="y")
+    z = x * y
+    z.backward()
+    torch.graph.show(z)
+    # a = Tensor(3, label="a")
+    # z = z * a
+    # z.backward()
+import torch
+from torch.backward_functions import *
+
+import numpy as np
+
+
+def exp(x):
+    out = x.clone()
+    out.data = np.exp(out.data)
+    out.grad_fn = ExpBackwardFunction(x, out)
+    return out
+
+
+def log(x):
+    out = x.clone()
+    out.data = np.log(out.data)
+
+    out.grad_fn = LogBackwardFunction(x, out)
+    return out
+
+
+def max(x, dim=None, keepdims=False):
+    if dim is None:
+        out = torch.Tensor(np.max(x.data, keepdims=keepdims), x.dtype, x.requires_grad)
+    else:
+        out = torch.Tensor(np.max(x.data, axis=dim, keepdims=keepdims), x.dtype, x.requires_grad)
+
+    out.grad_fn = MaxBackwardFunction(x, out, dim)
+    return out
+
+
+def sum(x, dim=None, keepdims=False):
+    if dim is None:
+        out = torch.Tensor(np.sum(x.data, keepdims=keepdims), x.dtype, x.requires_grad)
+    else:
+        out = torch.Tensor(np.sum(x.data, axis=dim, keepdims=keepdims), x.dtype, x.requires_grad)
+    out.grad_fn = SumBackwardFunction(x, out)
+    return out
+
+
+def matmul(x, other):
+    requires_grad = x.requires_grad or other.requires_grad
+    out = torch.Tensor(x.data.dot(other.data), requires_grad=requires_grad)
+    out.grad_fn = MatMulBackwardFunction(x, other, out)
+    return out
+
+
+def reshape(x, *dims):
+    out = x.clone()
+    out.data = out.data.reshape(*dims)
+    out.grad_fn = ReshapeBackwardFunction(x, out)
+    return out
+
+
+def pow(x, power):
+    out = x.clone()
+    out.data = out.data ** power
+    out.grad_fn = PowBackwardFunction(x, out, power)
+    return out
+
+
+def index_select(x, index):
+    out = x.clone()
+    slice = tuple([i if not isinstance(i, torch.Tensor) else i.data for i in index])
+    out.data = out.data[slice]
+    out.grad_fn = IndexSelectBackwardFunction(x, out, slice)
+    return out
+
+
+def mean(x, dims=None, keepdims=False):
+    kwargs = {}
+    if dims is not None:
+        kwargs["axis"] = dims
+    if keepdims is not None:
+        kwargs["keepdims"] = keepdims
+    data = x.data.mean(**kwargs)
+    out = torch.Tensor(data, requires_grad=x.requires_grad)
+    out.grad_fn = MeanBackwardFunction(x, out, dims, keepdims)
+
+    return out
+
+
+def mul(x, other):
+    requires_grad = x.requires_grad or other.requires_grad
+    out = torch.Tensor(x.data * other.data, requires_grad=requires_grad)
+    out.grad_fn = MulBackwardFunction(x, other, out)
+    return out
+
+
+def add(x, other):
+    requires_grad = x.requires_grad or other.requires_grad
+    out = torch.Tensor(x.data + other.data, requires_grad=requires_grad)
+    out.grad_fn = AddBackwardFunction(x, other, out)
+    return out
+
+
+def neg(x):
+    out = x.clone()
+    out.data = -out.data
+    out.grad_fn = NegBackwardFunction(x, out)
+    return out
+
+import numpy as np
+
+from torch.tensor import Tensor
+
+
+def tensor(data):
+    return Tensor(data, dtype=data.dtype)
+
+
+def randn(*dims, dtype=np.float32):
+    data = np.random.randn(*dims)
+    return Tensor(data, dtype=dtype)
+
+
+def zeros(*dims, dtype=np.float32):
+    return Tensor(np.zeros(*dims, dtype=dtype), dtype=dtype)
+
+
+def ones(*dims, dtype=np.float32):
+    return Tensor(np.ones(*dims, dtype=dtype), dtype=dtype)
+import queue
+
+import numpy as np
+
+from torch.tensor import Tensor
+
+
+def backward(tensor: Tensor):
+
+    def build_topo():
+        topo = []
+        q = queue.Queue()
+        q.put(tensor)
+        while not q.empty():
+            t = q.get()
+            if t in topo:
+                topo.remove(t)
+            topo.append(t)
+            for e in t.pre:
+                if e in topo:
+                    topo.remove(e)
+                q.put(e)
+        return topo
+
+    topo = build_topo()
+
+    # zero grad
+    for t in topo:
+        t.grad = np.zeros_like(t.data)
+
+    tensor.grad = np.ones_like(tensor.data)
+    for t in topo:
+        if t.grad_fn:
+            t.grad_fn()
+import inspect
+
+import numpy as np
+
+
+class BackwardFunction:
+    def save_variables(self):
+        params = inspect.signature(self.__init__).parameters
+        last_locals = inspect.currentframe().f_back.f_locals
+        for attr, param in params.items():
+            setattr(self, attr, last_locals[attr])
+
+    def dump_variables(self):
+        params = inspect.signature(self.__init__).parameters
+        return (getattr(self, attr) for attr in params)
+
+
+class ExpBackwardFunction(BackwardFunction):
+    def __init__(self, x, out):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out = self.dump_variables()
+        x.grad += out.grad * out.data
+
+
+class LogBackwardFunction(BackwardFunction):
+    def __init__(self, x, out):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out = self.dump_variables()
+        x.grad += out.grad * (1 / x.data)
+
+
+class MaxBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, dim):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, dim = self.dump_variables()
+        local_grad = np.zeros_like(x.data)
+        if dim is None:
+            idx = np.argmax(x.data)
+            local_grad = local_grad.reshape(-1)
+            local_grad[idx] = 1
+            local_grad = local_grad.reshape(x.data.shape)
+        else:
+            idx = np.argmax(x.data, axis=dim, keepdims=True)
+            local_grad[:, idx] = 1
+        x.grad += out.grad * local_grad
+
+
+
+class SumBackwardFunction(BackwardFunction):
+    def __init__(self, x, out):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out = self.dump_variables()
+        x.grad += out.grad * np.ones_like(x.data)
+
+
+class MatMulBackwardFunction(BackwardFunction):
+    def __init__(self, x, other, out):
+        other._append(out)
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, other, out = self.dump_variables()
+        x.grad += out.grad.dot(other.data.T)
+        other.grad += x.data.T.dot(out.grad)
+
+
+class ReshapeBackwardFunction(BackwardFunction):
+    def __init__(self, x, out):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out = self.dump_variables()
+        x.grad += out.grad.reshape(x.shape)
+
+
+class PowBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, power):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, power = self.dump_variables()
+        x.grad += out.grad * (power * x.data ** (power - 1))
+
+
+class IndexSelectBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, slice):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, slice = self.dump_variables()
+        local_grad = np.zeros_like(x.data)
+        local_grad[slice] = 1
+        x.grad += out.grad * local_grad
+
+
+class MeanBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, dims, keepdims):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, dims, keepdims = self.dump_variables()
+        if dims is None:
+            scale = x.data.size
+        elif isinstance(dims, list):
+            scale = 1
+            for dim in dims:
+                scale *= x.data.shape[dim]
+        else:
+            scale = x.data.shape[dims]
+
+        x.grad += out.grad * (1 / scale)
+
+
+class NegBackwardFunction(BackwardFunction):
+    def __init__(self, x, out):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out = self.dump_variables()
+        x.grad += -out.grad
+
+
+class AddBackwardFunction(BackwardFunction):
+    def __init__(self, x, other, out):
+        other._append(out)
+        x._append(out)
+        self.save_variables()
+        self.reduce_dims = []
+        for i, (ix1, ix2) in enumerate(zip(self.x.shape, self.other.shape)):
+            if ix1 != ix2:
+                self.reduce_dims.append(i)
+
+    def __call__(self):
+        x, other, out = self.dump_variables()
+        grad = np.ones_like(x.data) * out.grad
+        if grad.shape != x.data.shape:
+            for dim in self.reduce_dims:
+                grad = grad.sum(axis=dim, keepdims=True)
+        x.grad += grad
+        grad = np.ones_like(other.data) * out.grad
+        if grad.shape != other.data.shape:
+            for dim in self.reduce_dims:
+                grad = grad.sum(axis=dim, keepdims=True)
+        other.grad += grad
+
+
+class MulBackwardFunction(BackwardFunction):
+    def __init__(self, x, other, out):
+        other._append(out)
+        x._append(out)
+        self.save_variables()
+        self.reduce_dims = []
+        for i, (ix1, ix2) in enumerate(zip(self.x.shape, self.other.shape)):
+            if ix1 != ix2:
+                self.reduce_dims.append(i)
+
+    def __call__(self):
+        x, other, out = self.dump_variables()
+        grad = np.ones_like(x.data) * out.grad * other.data
+        if grad.shape != x.data.shape:
+            for dim in self.reduce_dims:
+                grad = grad.sum(axis=dim, keepdims=True)
+        x.grad += grad
+        grad = np.ones_like(other.data) * out.grad * x.data
+        if grad.shape != other.data.shape:
+            for dim in self.reduce_dims:
+                grad = grad.sum(axis=dim, keepdims=True)
+        other.grad += grad
+
+
+class NllLossBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, softmax, target):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, softmax, target = self.dump_variables()
+        softmax[:, target.data] -= 1
+        x.grad += out.grad * softmax
+
+
+class LeakyReluBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, leaky):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, leaky = self.dump_variables()
+        grad = np.ones_like(x.data)
+        grad[x.data < 0] = -leaky
+        x.grad += out.grad * grad
