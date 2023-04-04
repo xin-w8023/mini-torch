@@ -2,7 +2,7 @@ import numpy as np
 import mini_torch
 import mini_torch.graph
 import mini_torch.nn as nn
-import mini_torch.nn.functinoal as F
+import mini_torch.nn.functional as F
 
 
 def test_nn():

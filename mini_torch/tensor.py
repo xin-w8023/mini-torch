@@ -82,9 +82,22 @@ class Tensor:
     def __getitem__(self, index):
         return mini_torch.index_select(self, index)
 
+    def __radd__(self, other):
+        self.data += other
+        return self
+
+    def __rmul__(self, other):
+        self.data *= other
+        return self
+
+    @property
+    def ndim(self):
+        return self.data.ndim
+
     @property
     def shape(self):
         return self.data.shape
+
 
 if __name__ == '__main__':
     import mini_torch.graph

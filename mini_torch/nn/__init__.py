@@ -2,4 +2,5 @@ from .module import Module
 from .linear import Linear
 from .embedding import Embedding
 from .parameter import Parameter
-from .loss import *
+from .loss import CrossEntropyLoss
+from . import functional

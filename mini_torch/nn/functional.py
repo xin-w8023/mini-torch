@@ -33,3 +33,11 @@ def leaky_relu(x, leaky=0.1):
     out.grad_fn = LeakyReluBackwardFunction(x, out, leaky)
     return out
 
+
+def softmax(x, dim=-1):
+    data_max = x.data.max(dim, keepdims=True)
+    exp = np.exp(x.data - data_max)
+    softmax = exp / exp.sum(axis=dim, keepdims=True)
+    softmax = mini_torch.Tensor(softmax, requires_grad=x.requires_grad)
+    softmax.grad_fn = SoftmaxBackwardFunction(x, softmax, dim)
+    return softmax
