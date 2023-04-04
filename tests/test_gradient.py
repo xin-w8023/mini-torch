@@ -1,3 +1,5 @@
+import numpy as np
+
 import mini_torch
 import torch
 
@@ -78,3 +80,26 @@ def test_ce_gradient():
     # comparison
     torch.testing.assert_allclose(torch_loss.item(), loss.item())
     torch.testing.assert_allclose(torch_x.grad, x.grad)
+
+
+def test_softmax_gradient():
+    torch.manual_seed(42)
+
+    shape = (2,3,4,5)
+
+    for dim in range(len(shape)):
+
+        torch_x = torch.randn(*shape, requires_grad=True)
+        x = mini_torch.Tensor(torch_x.detach().numpy(), requires_grad=True)
+
+        # torch forward
+        torch_loss = torch.nn.functional.softmax(torch_x, dim=dim).mean()
+        torch_loss.backward()
+
+        # mini-torch forward
+        loss = mini_torch.nn.functional.softmax(x, dim=dim).mean()
+        loss.backward()
+
+        # comparison
+        torch.testing.assert_allclose(torch_loss.item(), loss.item())
+        torch.testing.assert_allclose(torch_x.grad, x.grad)

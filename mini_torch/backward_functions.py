@@ -209,3 +209,30 @@ class LeakyReluBackwardFunction(BackwardFunction):
         grad = np.ones_like(x.data)
         grad[x.data < 0] = -leaky
         x.grad += out.grad * grad
+
+
+class SoftmaxBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, dim):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, dim  = self.dump_variables()
+        trans = np.arange(x.ndim)
+        trans[dim] = -1
+        trans[-1] = dim
+
+        if x.ndim > 1:
+            tmp = out.data.transpose(trans)
+        else:
+            tmp = out.data
+
+        grad = np.zeros_like(tmp)
+
+        for i in range(x.shape[dim]):
+            grad[..., i] = tmp[..., i] - np.sum(tmp[..., i:i+1] * tmp, axis=-1)
+
+        if x.ndim > 1:
+            grad = grad.transpose(trans)
+
+        x.grad += out.grad * grad
