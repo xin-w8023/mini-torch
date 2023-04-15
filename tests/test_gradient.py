@@ -1,7 +1,6 @@
-import numpy as np
+import torch
 
 import mini_torch
-import torch
 
 
 def test_embedding_gradient():
@@ -85,10 +84,9 @@ def test_ce_gradient():
 def test_softmax_gradient():
     torch.manual_seed(42)
 
-    shape = (2,3,4,5)
+    shape = (2, 3, 4, 5)
 
     for dim in range(len(shape)):
-
         torch_x = torch.randn(*shape, requires_grad=True)
         x = mini_torch.Tensor(torch_x.detach().numpy(), requires_grad=True)
 

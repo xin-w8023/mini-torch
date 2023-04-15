@@ -6,7 +6,6 @@ from mini_torch.tensor import Tensor
 
 
 def backward(tensor: Tensor):
-
     def build_topo():
         topo = []
         q = queue.Queue()

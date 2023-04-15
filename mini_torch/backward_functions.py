@@ -54,7 +54,6 @@ class MaxBackwardFunction(BackwardFunction):
         x.grad += out.grad * local_grad
 
 
-
 class SumBackwardFunction(BackwardFunction):
     def __init__(self, x, out):
         x._append(out)
@@ -104,7 +103,9 @@ class IndexSelectBackwardFunction(BackwardFunction):
 
     def __call__(self):
         x, out, slice = self.dump_variables()
-        for i, out_grad in zip(slice.reshape(-1), out.grad.reshape((-1, out.grad.shape[-1]))):
+        for i, out_grad in zip(
+            slice.reshape(-1), out.grad.reshape((-1, out.grad.shape[-1]))
+        ):
             x.grad[i] += out_grad
 
 
@@ -217,7 +218,7 @@ class SoftmaxBackwardFunction(BackwardFunction):
         self.save_variables()
 
     def __call__(self):
-        x, out, dim  = self.dump_variables()
+        x, out, dim = self.dump_variables()
         trans = np.arange(x.ndim)
         trans[dim] = -1
         trans[-1] = dim
@@ -230,7 +231,7 @@ class SoftmaxBackwardFunction(BackwardFunction):
         grad = np.zeros_like(tmp)
 
         for i in range(x.shape[dim]):
-            grad[..., i] = tmp[..., i] - np.sum(tmp[..., i:i+1] * tmp, axis=-1)
+            grad[..., i] = tmp[..., i] - np.sum(tmp[..., i : i + 1] * tmp, axis=-1)
 
         if x.ndim > 1:
             grad = grad.transpose(trans)

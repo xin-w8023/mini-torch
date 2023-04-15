@@ -17,7 +17,8 @@ class Linear(nn.Module):
         return x
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     class Model(nn.Module):
         def __init__(self):
             super().__init__()

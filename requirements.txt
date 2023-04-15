@@ -1,4 +1,8 @@
+torch
 numpy
 graphviz
 pytest
 tensorboard
+black
+flake8
+isort

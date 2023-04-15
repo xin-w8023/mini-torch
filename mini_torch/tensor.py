@@ -1,16 +1,19 @@
 import copy
-import mini_torch
+
 import numpy as np
+
+import mini_torch
 
 
 class Tensor:
     def __init__(self, data, dtype=np.float32, requires_grad=False, grad_fn=None):
-
         if not isinstance(data, np.ndarray):
             try:
                 data = np.array(data, dtype=dtype)
-            except Exception as e:
-                raise ValueError(f"Cannot convert data with type {type(data)} to Tensor.")
+            except Exception:
+                raise ValueError(
+                    f"Cannot convert data with type {type(data)} to Tensor."
+                )
 
         self.data = data
         self.dtype = dtype
@@ -22,12 +25,14 @@ class Tensor:
         self.next = []
 
     def __repr__(self):
-        return f"Tensor(" \
-               f"{self.data}, " \
-               f"dtype={self.dtype.__name__}, " \
-               f"requires_grad={self.requires_grad}, " \
-               f"grad_fn={self.grad_fn}" \
-               f")"
+        return (
+            f"Tensor("
+            f"{self.data}, "
+            f"dtype={self.dtype.__name__}, "
+            f"requires_grad={self.requires_grad}, "
+            f"grad_fn={self.grad_fn}"
+            f")"
+        )
 
     def _append(self, other):
         if other not in self.next:
@@ -58,8 +63,12 @@ class Tensor:
         return self.data.item()
 
     def clone(self):
-        return Tensor(copy.deepcopy(self.data), self.dtype,
-                      self.requires_grad, grad_fn=self.grad_fn)
+        return Tensor(
+            copy.deepcopy(self.data),
+            self.dtype,
+            self.requires_grad,
+            grad_fn=self.grad_fn,
+        )
 
     def backward(self):
         mini_torch.autograd.backward(self)
@@ -99,8 +108,9 @@ class Tensor:
         return self.data.shape
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import mini_torch.graph
+
     x = np.arange(1, 3).reshape(1, 2)
     y = np.arange(1, 3).reshape(2, 1)
     x = Tensor(x, label="x")

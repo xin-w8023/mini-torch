@@ -1,5 +1,5 @@
 import mini_torch
-import mini_torch.nn as nn
+from mini_torch import nn
 
 
 class Embedding(nn.Module):
