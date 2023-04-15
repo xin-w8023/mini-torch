@@ -1,7 +1,9 @@
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+
 import mini_torch.nn as nn
 import mini_torch.optim
+
 
 class Model(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size):
@@ -18,7 +20,12 @@ def batcher(data, block_size=5, bos=0, batch_size=1):
     x = [bos] * block_size
     mini_batch = []
     for i, v in enumerate(data):
-        mini_batch.append((mini_torch.Tensor(x, dtype=int).reshape((1, -1)), mini_torch.Tensor(v, dtype=int)))
+        mini_batch.append(
+            (
+                mini_torch.Tensor(x, dtype=int).reshape((1, -1)),
+                mini_torch.Tensor(v, dtype=int),
+            )
+        )
         if len(mini_batch) == batch_size:
             xs = mini_torch.cat([i for i, v in mini_batch], dim=0)
             ys = mini_torch.cat([v for i, v in mini_batch])
@@ -78,6 +85,3 @@ for _ in range(10000):
         text += i2c[x]
         xl = xl[1:] + [x]
     writer.add_text("text", text, global_step)
-
-
-

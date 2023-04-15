@@ -1,6 +1,5 @@
 import numpy as np
 
-import mini_torch
 from mini_torch.optim.optimizer import Optimizer
 
 

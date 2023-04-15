@@ -1,6 +1,8 @@
-from .module import Module
-from .linear import Linear
-from .embedding import Embedding
-from .parameter import Parameter
-from .loss import CrossEntropyLoss
+# isort: skip_file
+
 from . import functional
+from .module import Module
+from .embedding import Embedding
+from .linear import Linear
+from .loss import CrossEntropyLoss
+from .parameter import Parameter
