@@ -39,7 +39,8 @@ def batcher(data, block_size=5, bos=0, batch_size=1):
         yield xs, ys
 
 
-data = open("code.txt", "r", encoding="utf8").read()
+example_dir = "examples/char_lm"
+data = open(f"{example_dir}/code.txt", "r", encoding="utf8").read()
 chars = sorted(set(data))
 
 c2i = {c: i for i, c in enumerate(chars)}
@@ -59,7 +60,7 @@ criterion = nn.CrossEntropyLoss()
 opt = mini_torch.optim.SGD(model.parameters(), 0.1)
 
 
-writer = SummaryWriter("./log")
+writer = SummaryWriter(f"{example_dir}/log")
 
 global_step = 0
 for _ in range(10000):

@@ -1,6 +1,8 @@
-from mini_torch.generator import ones, randn, tensor, zeros
+# isort: skip_file
 
-from . import autograd, optim
+from .generator import ones, randn, tensor, zeros
+from .tensor import Tensor
+from . import autograd, optim, nn
 from .ops import (
     add,
     cat,
@@ -16,4 +18,3 @@ from .ops import (
     reshape,
     sum,
 )
-from .tensor import Tensor
