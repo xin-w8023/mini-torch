@@ -3,22 +3,6 @@ import numpy as np
 import mini_torch
 import mini_torch.backward_functions as BF
 
-__all__ = [
-    "exp",
-    "log",
-    "max",
-    "sum",
-    "matmul",
-    "reshape",
-    "pow",
-    "index_select",
-    "mean",
-    "mul",
-    "add",
-    "neg",
-    "cat",
-]
-
 
 def exp(x):
     out = x.clone()
@@ -86,15 +70,15 @@ def pow(x, power):
 def index_select(x, index):
     out = x.clone()
     if isinstance(index, mini_torch.Tensor):
-        slice = index.data
+        s = index.data
     elif isinstance(index, int):
-        slice = index
+        s = index
     else:
-        slice = tuple(
+        s = tuple(
             [i if not isinstance(i, mini_torch.Tensor) else i.data for i in index]
         )
-    out.data = out.data[slice]
-    out.grad_fn = BF.IndexSelectBackwardFunction(x, out, slice)
+    out.data = out.data[s]
+    out.grad_fn = BF.IndexSelectBackwardFunction(x, out, s)
     return out
 
 
@@ -136,4 +120,18 @@ def cat(tensors, dim=None):
     datas = [t.data for t in tensors]
     datas = np.concatenate(datas, axis=dim)
     out = mini_torch.Tensor(datas)
+    return out
+
+
+def transpose(x, axis=None):
+    out = x.clone()
+    out.data = np.transpose(out.data, axis)
+    out.grad_fn = BF.TransposeBackwardFunction(x, out, axis)
+    return out
+
+
+def bmm(x, other):
+    requires_grad = x.requires_grad or other.requires_grad
+    out = mini_torch.Tensor(np.matmul(x.data, other.data), requires_grad=requires_grad)
+    out.grad_fn = BF.BatchMatMulBackwardFunction(x, other, out)
     return out

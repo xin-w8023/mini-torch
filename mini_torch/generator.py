@@ -4,7 +4,7 @@ from mini_torch.tensor import Tensor
 
 
 def tensor(data):
-    return Tensor(data, dtype=data.dtype)
+    return Tensor(data)
 
 
 def randn(*dims, dtype=np.float32):

@@ -2,6 +2,7 @@ torch
 numpy
 graphviz
 pytest
+pytest-cov
 tensorboard
 black
 flake8

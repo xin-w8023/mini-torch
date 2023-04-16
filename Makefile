@@ -15,4 +15,4 @@ style:
 
 # Run tests for the library
 test:
-	python3 -m pytest ./tests/
+	python3 -m pytest ./tests/ --cov=mini_torch --cov-report=term-missing:skip-covered

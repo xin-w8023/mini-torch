@@ -17,4 +17,6 @@ from .ops import (
     pow,
     reshape,
     sum,
+    transpose,
+    bmm,
 )
