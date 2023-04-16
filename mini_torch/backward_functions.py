@@ -237,3 +237,27 @@ class SoftmaxBackwardFunction(BackwardFunction):
             grad = grad.transpose(trans)
 
         x.grad += out.grad * grad
+
+
+class TransposeBackwardFunction(BackwardFunction):
+    def __init__(self, x, out, axis):
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, out, axis = self.dump_variables()
+        x.grad += np.transpose(out.grad, axis)
+
+
+class BatchMatMulBackwardFunction(BackwardFunction):
+    def __init__(self, x, other, out):
+        other._append(out)
+        x._append(out)
+        self.save_variables()
+
+    def __call__(self):
+        x, other, out = self.dump_variables()
+        axis = np.arange(x.ndim)
+        axis[-1], axis[-2] = axis[-2], axis[-1]
+        x.grad += np.matmul(out.grad, other.data.transpose(axis))
+        other.grad += np.matmul(x.data.transpose(axis), out.grad)

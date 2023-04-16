@@ -1,3 +1,4 @@
 *log
 *pytest*
 *__pycache__
+.coverage
