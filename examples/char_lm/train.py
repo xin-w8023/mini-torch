@@ -3,6 +3,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import mini_torch.nn as nn
 import mini_torch.optim
+from mini_torch.meter.record import Record
 
 
 class Model(nn.Module):
@@ -40,7 +41,7 @@ def batcher(data, block_size=5, bos=0, batch_size=1):
 
 
 example_dir = "examples/char_lm"
-data = open(f"{example_dir}/code.txt", "r", encoding="utf8").read()
+data = open(f"{example_dir}/t8.shakespeare.txt", "r", encoding="utf8").read()
 chars = sorted(set(data))
 
 c2i = {c: i for i, c in enumerate(chars)}
@@ -51,19 +52,23 @@ data = [c2i[e] for e in data]
 
 vocab_size = len(c2i)
 embed_size = vocab_size
-prompt = "            "
+prompt = " " * 16
 block_size = len(prompt)
-batch_size = 20
+batch_size = 32
 
 model = Model(vocab_size, embed_size, block_size * embed_size)
 criterion = nn.CrossEntropyLoss()
-opt = mini_torch.optim.SGD(model.parameters(), 0.1)
+opt = mini_torch.optim.SGD(model.parameters(), 0.5)
+scheduler = mini_torch.optim.StepScheduler(
+    opt, lr=0.5, factor=0.5, interval_step=1, interval_type="epoch"
+)
+recoder = Record()
 
-
-writer = SummaryWriter(f"{example_dir}/log")
+writer = SummaryWriter(f"{example_dir}/log/epoch")
 
 global_step = 0
-for _ in range(10000):
+for epoch in range(10000):
+    recoder.reset()
     for x, t in batcher(data, block_size, c2i["<S>"], batch_size=batch_size):
         y = model(x)
         loss = criterion(y, t)
@@ -71,18 +76,22 @@ for _ in range(10000):
         opt.zero_grad()
         loss.backward()
         opt.step()
-        if global_step % 1000:
-            writer.add_scalar("loss", loss.item(), global_step)
+        recoder.append(loss.item())
+        scheduler.step(epoch=epoch)
         global_step += 1
-    print(loss.item())
-    text = ""
-    xl = [int(c2i[e]) for e in prompt]
-    for _ in range(100):
-        x = mini_torch.Tensor(xl, dtype=int).reshape(1, -1)
-        p = model(x).data.reshape(-1)
-        p = p - np.max(p)
-        p = np.exp(p) / np.sum(np.exp(p))
-        x = np.random.choice(list(range(vocab_size)), size=1, p=p)[0]
-        text += i2c[x]
-        xl = xl[1:] + [x]
-    writer.add_text("text", text, global_step)
+        if global_step % 1000 == 0:
+            writer.add_scalar("loss", recoder.report(), global_step)
+            writer.add_scalar("lr", scheduler.get_last_lr(), global_step)
+            print(global_step / 1000, recoder.report())
+
+            text = ""
+            xl = [int(c2i[e]) for e in prompt]
+            for _ in range(1024):
+                p = mini_torch.Tensor(xl, dtype=int).reshape(1, -1)
+                p = model(p).data.reshape(-1)
+                p = p - np.max(p)
+                p = np.exp(p) / np.sum(np.exp(p))
+                p = np.random.choice(list(range(vocab_size)), size=1, p=p)[0]
+                text += i2c[p]
+                xl = xl[1:] + [p]
+            writer.add_text("text", text, global_step)
