@@ -85,6 +85,12 @@ class Tensor:
     def sum(self, dim=None, keepdims=False):
         return mini_torch.sum(self, dim, keepdims)
 
+    def transpose(self, axis):
+        return mini_torch.transpose(self, axis)
+
+    def to_list(self):
+        return self.data.tolist()
+
     def __pow__(self, power, modulo=None):
         return mini_torch.pow(self, power)
 

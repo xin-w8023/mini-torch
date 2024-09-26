@@ -15,18 +15,3 @@ class Linear(nn.Module):
         if self.bias:
             x += self.bias
         return x
-
-
-if __name__ == "__main__":
-
-    class Model(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.li = Linear(10, 20)
-
-        def forward(self, x):
-            return self.li(x)
-
-    m = Model()
-    print(dict(m.named_parameters()))
-    print(m)
